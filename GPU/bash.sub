@@ -1,0 +1,53 @@
+#!/bin/bash -l
+#SBATCH --exclusive
+#SBATCH -t 1
+#SBATCH --partition=cuda.q
+
+T=20000
+N=10000000
+
+# IMPORTANT: execute with exclusive ownership of node
+
+# echo name of host processor (for documentation)
+echo "Run on computer:"
+hostname
+echo
+
+# next variable indicates GPU device number 
+export CUDA_VISIBLE_DEVICES=0
+
+# install CUDA profiling utilities
+module add cuda/9.0
+module add pgi/18.4
+
+echo "Compiling for CPU"
+pgcc -fast -ta=multicore -Minfo=accel Heat1D.c -o hCPU4
+echo
+
+echo "Compiling for GPU"
+pgcc -fast -ta=tesla -Minfo=accel Heat1D.c -o hGPU4
+echo
+
+echo "Running and profiling on CPU"
+# modify the last two parameters to change nsize and max_iteration
+perf stat ./hCPU4 $T $N
+echo
+
+echo "Running and profiling on GPU"
+# modify the last two parameters to change nsize and max_iteration
+nvprof --print-gpu-summary ./hGPU4 $T $N
+echo
+
+echo "Generating Trace of 20 iterations on GPU"
+# You can remove the "-o jGPU4.trace" option if you do not need the information for the graphical profiler
+#nvprof --print-gpu-trace -f -o hGPU4.trace ./hGPU4 $T 1000
+#echo
+
+echo "Generating Analysis of 10 iterations for visualization in grapical profiler"
+#nvprof --analysis-metrics -f -o hGPU4.analysis ./hGPU4 $SIZE 1000
+#echo
+
+echo "Generating Analysis of 10 iterations for textual visualization only for the kernel 'main_110_gpu'"
+# remove the option "--kernels "main_110_gpu"" to generate information for all the kernels
+#nvprof --kernels "main_110_gpu" --metrics all ./hGPU4 $SIZE 10
+#echo
